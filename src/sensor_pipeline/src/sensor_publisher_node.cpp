@@ -1,7 +1,7 @@
 #include <chrono>
 #include <memory>
 #include <cstring>
-#include <random> // <-- Fix 2: Added the random header
+#include <random>
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_interfaces/msg/sensor_reading.hpp"
 
@@ -11,7 +11,7 @@
 using namespace std::chrono_literals;
 
 struct InternalReading {
-    char sensor_name[32]; // <-- Fix 1: Added the semicolon
+    char sensor_name[32];
     double value;
     double timestamp;
     bool is_healthy;
@@ -35,44 +35,42 @@ private:
     void produce_and_publish() {
         cycle_count_++;
 
-        // --- STEP A: Allocate ---
         InternalReading* reading = pool_.allocate();
         if (!reading) {
             RCLCPP_ERROR(this->get_logger(), "Pool allocator is full! Dropping data.");
             return;
         }
 
-        // --- STEP B: Populate Simulated Data ---
         std::strncpy(reading->sensor_name, "IMU_Primary", sizeof(reading->sensor_name) - 1);
         reading->sensor_name[sizeof(reading->sensor_name) - 1] = '\0';
         
         reading->value = 9.81 + dist_(gen_);
         reading->timestamp = this->now().seconds();
-        reading->is_healthy = (cycle_count_ % 5 != 0);
+        
+        // Use a repeating burst pattern: Cycles 10 to 15 out of every 50 will be faults.
+        // This allows you to test the E-STOP and Reset service multiple times!
+        reading->is_healthy = !(cycle_count_ % 50 >= 10 && cycle_count_ % 50 <= 15);
 
-        // --- STEP C: Push to Circular Buffer ---
         buffer_.push(reading);
 
-        // --- STEP D: Pop from Circular Buffer ---
-        InternalReading* processed = nullptr; // Create an empty pointer
+        InternalReading* processed = nullptr;
         
-        // Fix 3: Pass the pointer by reference into your Day 1 pop() function
         if (buffer_.pop(processed)) { 
-            
-            // --- STEP E: Convert to ROS 2 Message ---
             auto msg = sensor_interfaces::msg::SensorReading();
             msg.sensor_name = processed->sensor_name;
             msg.value = processed->value;
             msg.timestamp = processed->timestamp;
             msg.is_healthy = processed->is_healthy;
 
-            // --- STEP F: Publish ---
             publisher_->publish(msg);
 
-            RCLCPP_INFO(this->get_logger(), "[POOL] Published: %s val=%.2f | Healthy: %s", 
-                        msg.sensor_name.c_str(), msg.value, msg.is_healthy ? "TRUE" : "FALSE");
+            // Log so we can see when the publisher is sending faults
+            if (msg.is_healthy) {
+                 RCLCPP_INFO(this->get_logger(), "[POOL] Published: %s val=%.2f | Healthy: TRUE", msg.sensor_name.c_str(), msg.value);
+            } else {
+                 RCLCPP_WARN(this->get_logger(), "[POOL] Published: %s val=%.2f | Healthy: FALSE (FAULT INJECTED)", msg.sensor_name.c_str(), msg.value);
+            }
 
-            // --- STEP H: Deallocate ---
             pool_.deallocate(processed);
         }
     }
