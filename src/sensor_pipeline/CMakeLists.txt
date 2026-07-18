@@ -30,4 +30,10 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# ---> NEW: Install the launch files so ros2 launch can find them <---
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()
