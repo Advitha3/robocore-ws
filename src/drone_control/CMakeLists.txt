@@ -9,18 +9,22 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# --- Node 1: The Brain ---
+# EKF Node
+add_executable(ekf_node src/ekf_node.cpp)
+ament_target_dependencies(ekf_node rclcpp std_msgs)
+
+# PID Controller Node
 add_executable(pid_node src/pid_node.cpp)
 ament_target_dependencies(pid_node rclcpp std_msgs)
 
-# --- Node 2: The Simulator ---
-add_executable(simulator_node src/drone_simulator_node.cpp)
-ament_target_dependencies(simulator_node rclcpp std_msgs)
+# Drone Simulator Node
+add_executable(drone_simulator_node src/drone_simulator_node.cpp)
+ament_target_dependencies(drone_simulator_node rclcpp std_msgs)
 
-# Install BOTH nodes
 install(TARGETS
+  ekf_node
   pid_node
-  simulator_node
+  drone_simulator_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
